@@ -1,0 +1,167 @@
+---
+title: "Factors that correlate to the spread of COVID-19"
+author: "John Lee"
+date: '2021 5 6 '
+output: html_document
+---
+# 1. Data setup
+```{r}
+library(mgcv) # for GAM function
+library(car) # for vif function
+# The code will only work after wd is set to the directory with the csv files
+wd = "/Users/johnlee/Downloads/Factors that correlate to the spread of COVID-19/processed data/"
+# dat1 includes countries with and without testing data, and consists of 164 data points
+dat1 = read.csv(paste(wd, "processed data.csv", sep = ""))
+# dat2 includes only countries with testing data, and consists of 104 data points
+dat2 = read.csv(paste(wd, "processed data with testing.csv", sep = ""))
+```
+
+# 2. Exploratory Data Analysis
+
+## 2.1. all variables VS Cases_per_mill, dat1 on top, dat2 on bottom
+```{r}
+par(mfrow=c(2,3))
+plot(dat1$Population, dat1$Cases_per_mill)
+plot(dat1$Population_Density, dat1$Cases_per_mill)
+plot(dat1$GDP_Per_Cap, dat1$Cases_per_mill)
+plot(dat2$Population, dat2$Cases_per_mill)
+plot(dat2$Population_Density, dat2$Cases_per_mill)
+plot(dat2$GDP_Per_Cap, dat2$Cases_per_mill)
+
+plot(dat1$Resp_Death_Rate, dat1$Cases_per_mill)
+plot(dat1$Median_Age, dat1$Cases_per_mill)
+plot(dat1$Contact_Tracing, dat1$Cases_per_mill)
+plot(dat2$Resp_Death_Rate, dat2$Cases_per_mill)
+plot(dat2$Median_Age, dat2$Cases_per_mill)
+plot(dat2$Contact_Tracing, dat2$Cases_per_mill)
+
+plot(dat1$INT_Travel_Controls, dat1$Cases_per_mill)
+plot(dat1$Physicians_Per_1000_ppl, dat1$Cases_per_mill)
+plot(dat1$Percent_Urbanization, dat1$Cases_per_mill)
+plot(dat2$INT_Travel_Controls, dat2$Cases_per_mill)
+plot(dat2$Physicians_Per_1000_ppl, dat2$Cases_per_mill)
+plot(dat2$Percent_Urbanization, dat2$Cases_per_mill)
+
+plot(dat1$Life_Expectancy, dat1$Cases_per_mill)
+plot(dat1$HC_Expenditure_Per_Capita, dat1$Cases_per_mill)
+plot(dat1$Stay_Home_Req, dat1$Cases_per_mill)
+plot(dat2$Life_Expectancy, dat2$Cases_per_mill)
+plot(dat2$HC_Expenditure_Per_Capita, dat2$Cases_per_mill)
+plot(dat2$Stay_Home_Req, dat2$Cases_per_mill)
+
+par(mfrow=c(2,2))
+plot(dat1$Gathering_Restrictions, dat1$Cases_per_mill)
+plot(dat1$Internal_Movement_Restrict, dat1$Cases_per_mill)
+plot(dat2$Gathering_Restrictions, dat2$Cases_per_mill)
+plot(dat2$Internal_Movement_Restrict, dat2$Cases_per_mill)
+plot(dat2$Tests_per_mill, dat2$Cases_per_mill)
+```
+
+# 3. Data Analysis
+## 3.1. Attempt with a normal MLR
+### 3.1.1. Cases_per_mill as dependent variable
+```{r}
+# fit everything into one big MLR
+cases_mlr = lm(Cases_per_mill ~ Population + Population_Density + GDP_Per_Cap + Resp_Death_Rate + Median_Age + Contact_Tracing + INT_Travel_Controls + Physicians_Per_1000_ppl + Percent_Urbanization + Life_Expectancy + HC_Expenditure_Per_Capita + Stay_Home_Req + Gathering_Restrictions + Internal_Movement_Restrict + Tests_per_mill, data = dat2)
+summary(cases_mlr)
+par(mfrow=c(2,2))
+plot(cases_mlr)
+vif(cases_mlr)
+```
+
+### 3.1.2. Cases_per_mill as dependent variable, with life expectancy removed
+```{r}
+# Same as 3.1.1., but with life expectancy removed
+cases_mlr = lm(Cases_per_mill ~ Population + Population_Density + GDP_Per_Cap + Resp_Death_Rate + Median_Age + Contact_Tracing + INT_Travel_Controls + Physicians_Per_1000_ppl + Percent_Urbanization + HC_Expenditure_Per_Capita + Stay_Home_Req + Gathering_Restrictions + Internal_Movement_Restrict + Tests_per_mill, data = dat2)
+summary(cases_mlr)
+par(mfrow=c(2,2))
+plot(cases_mlr)
+vif(cases_mlr)
+```
+
+### 3.1.3. Deaths_per_mill as dependent variable, with life expectancy removed
+```{r}
+# same as 3.1.2., but with deaths instead of cases as dependent variable
+death_mlr = lm(Death_per_mill ~ Population + Population_Density + GDP_Per_Cap + Resp_Death_Rate + Median_Age + Contact_Tracing + INT_Travel_Controls + Physicians_Per_1000_ppl + Percent_Urbanization + HC_Expenditure_Per_Capita + Stay_Home_Req + Gathering_Restrictions + Internal_Movement_Restrict + Tests_per_mill, data = dat2)
+summary(death_mlr)
+par(mfrow=c(2,2))
+plot(death_mlr)
+vif(death_mlr)
+```
+
+## 3.2. Attempt with the GAM function
+### 3.2.1. Cases_per_mill as dependent variable
+```{r}
+# seemingly linear variables had the 's' taken off.
+# however, population was the only variable such that taking the 's' off resulted in weird behavior
+# (such as adj R-squared decreasing significantly), so the 's' was left on for population
+cases_GAM = gam(Cases_per_mill ~
+                  s(Population) +
+                  s(Population_Density) +
+                  s(GDP_Per_Cap) +
+                  Resp_Death_Rate +
+                  s(Median_Age) +
+                  Contact_Tracing +
+                  s(INT_Travel_Controls) +
+                  s(Physicians_Per_1000_ppl) +
+                  s(Percent_Urbanization) +
+                  s(HC_Expenditure_Per_Capita) +
+                  Stay_Home_Req +
+                  Gathering_Restrictions +
+                  Internal_Movement_Restrict +
+                  s(Tests_per_mill),
+                data = dat2)
+summary(cases_GAM)
+par(mfrow=c(2,3))
+plot(cases_GAM)
+```
+
+
+### 3.2.2. Cases_per_mill as dependent variable, two outliers removed
+```{r}
+# these are indices for India and Singapore
+dat2_no_Outliers <- dat2[-c(39, 84),]
+cases_GAM = gam(Cases_per_mill ~
+                  s(Population) +
+                  s(Population_Density) +
+                  s(GDP_Per_Cap) +
+                  Resp_Death_Rate +
+                  s(Median_Age) +
+                  Contact_Tracing +
+                  s(INT_Travel_Controls) +
+                  s(Physicians_Per_1000_ppl) +
+                  s(Percent_Urbanization) +
+                  s(HC_Expenditure_Per_Capita) +
+                  Stay_Home_Req +
+                  Gathering_Restrictions +
+                  Internal_Movement_Restrict +
+                  s(Tests_per_mill),
+                data = dat2_no_Outliers)
+summary(cases_GAM)
+par(mfrow=c(2,3))
+plot(cases_GAM)
+```
+
+### 3.2.3. Deaths_per_mill as dependent variable, two outliers removed
+```{r}
+# Same as 3.2.2., but with deaths instead of cases
+death_GAM = gam(Death_per_mill ~
+                  s(Population) +
+                  s(Population_Density) +
+                  s(GDP_Per_Cap) +
+                  Resp_Death_Rate +
+                  s(Median_Age) +
+                  Contact_Tracing +
+                  s(INT_Travel_Controls) +
+                  s(Physicians_Per_1000_ppl) +
+                  Percent_Urbanization +
+                  s(HC_Expenditure_Per_Capita) +
+                  s(Stay_Home_Req) +
+                  Gathering_Restrictions +
+                  s(Internal_Movement_Restrict) +
+                  Tests_per_mill,
+                data = dat2_no_Outliers)
+summary(death_GAM)
+par(mfrow=c(2,3))
+plot(death_GAM)
+```
